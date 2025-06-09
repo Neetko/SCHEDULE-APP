@@ -1,0 +1,388 @@
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Calendar, Clock, Save, Database, LogOut } from "lucide-react"
+import { useState, useEffect } from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { ScheduleService } from "@/lib/schedule-service"
+import { isSupabaseConfigured } from "@/lib/supabase"
+
+interface TimeSlot {
+  time: string
+  status: "available" | "unavailable"
+  activity: string
+  description: string
+}
+
+export default function AdminPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [selectedDate, setSelectedDate] = useState("")
+  const [currentTime, setCurrentTime] = useState("")
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    activity: "",
+    status: "free" as "free" | "busy",
+    description: "",
+  })
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === "loading") return // Still loading
+    if (!session) {
+      router.push("/")
+      return
+    }
+  }, [session, status, router])
+
+  // Initialize time slots
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(() => {
+    const slots: TimeSlot[] = []
+    for (let i = 0; i < 24; i++) {
+      const time = `${i.toString().padStart(2, "0")}:00`
+      slots.push({
+        time,
+        status: "available",
+        activity: "",
+        description: "",
+      })
+    }
+    return slots
+  })
+
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date()
+      setCurrentTime(
+        now.toLocaleTimeString("sr-RS", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+      )
+      if (!selectedDate) {
+        setSelectedDate(now.toISOString().split("T")[0])
+      }
+    }
+
+    updateDateTime()
+    const interval = setInterval(updateDateTime, 1000)
+    return () => clearInterval(interval)
+  }, [selectedDate])
+
+  const handleSlotClick = (time: string) => {
+    const slot = timeSlots.find((s) => s.time === time)
+    if (slot) {
+      setSelectedSlot(time)
+      setFormData({
+        activity: slot.activity,
+        status: slot.status === "available" ? "free" : "busy",
+        description: slot.description,
+      })
+    }
+  }
+
+  const handleSaveSlot = async () => {
+    if (selectedSlot && isSupabaseConfigured) {
+      try {
+        await ScheduleService.saveTimeSlot(
+          selectedDate,
+          selectedSlot + ":00", // Convert HH:MM to HH:MM:SS format
+          formData.status,
+          formData.activity || (formData.status === "free" ? "Available" : "Busy"),
+          formData.description,
+        )
+
+        // Update local state
+        setTimeSlots((prev) =>
+          prev.map((slot) =>
+            slot.time === selectedSlot
+              ? { ...slot, ...formData, status: formData.status === "free" ? "available" : "unavailable" }
+              : slot,
+          ),
+        )
+        setSelectedSlot(null)
+        setFormData({ activity: "", status: "free", description: "" })
+
+        alert("Time slot saved successfully!")
+      } catch (error) {
+        console.error("Error saving time slot:", error)
+        alert("Error saving time slot. Please try again.")
+      }
+    }
+  }
+
+  const handleCommitData = async () => {
+    if (!isSupabaseConfigured) {
+      alert("Supabase is not configured")
+      return
+    }
+
+    try {
+      // Convert timeSlots to the format expected by ScheduleService
+      const scheduleData: Record<string, { status: string; activity: string; description?: string }> = {}
+
+      timeSlots.forEach((slot) => {
+        const timeKey = slot.time + ":00" // Convert HH:MM to HH:MM:SS
+        scheduleData[timeKey] = {
+          status: slot.status === "available" ? "free" : "busy",
+          activity: slot.activity || (slot.status === "available" ? "Available" : "Busy"),
+          description: slot.description,
+        }
+      })
+
+      await ScheduleService.saveDaySchedule(selectedDate, scheduleData)
+      alert("Schedule committed to database successfully!")
+    } catch (error) {
+      console.error("Error committing data:", error)
+      alert("Error committing data to database. Please try again.")
+    }
+  }
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: "/" })
+  }
+
+  const getDiscordAvatarUrl = (userId: string, avatar: string) => {
+    if (!avatar) return "/placeholder.svg?height=40&width=40"
+    return `https://cdn.discordapp.com/avatars/${userId}/${avatar}.png?size=128`
+  }
+
+  // Show loading state while checking authentication
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen relative flex items-center justify-center">
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/background-collage.jpg"
+            alt="Background collage"
+            fill
+            className="object-cover opacity-10"
+            priority
+          />
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+        <Card className="relative z-10 w-full max-w-md bg-gray-800/90 border-gray-700 text-white">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto mb-4"></div>
+            <p>Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Don't render anything if not authenticated (will redirect)
+  if (!session) {
+    return null
+  }
+
+  return (
+    <div className="min-h-screen relative">
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        <Image
+          src="/background-collage.jpg"
+          alt="Background collage"
+          fill
+          className="object-cover opacity-10"
+          priority
+        />
+        <div className="absolute inset-0 bg-black/60" />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header with User Profile */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl md:text-6xl font-bold text-purple-400 mb-4">Admin Panel</h1>
+
+            {/* User Profile Card */}
+            <Card className="mb-6 bg-gray-800/90 border-gray-700 max-w-md mx-auto">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Image
+                      src={getDiscordAvatarUrl(session.user.id, session.user.avatar) || "/placeholder.svg"}
+                      alt={`${session.user.username}'s avatar`}
+                      width={48}
+                      height={48}
+                      className="rounded-full border-2 border-purple-400"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-800"></div>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h3 className="text-white font-semibold">
+                      {session.user.username}
+                      {session.user.discriminator && session.user.discriminator !== "0" && (
+                        <span className="text-gray-400">#{session.user.discriminator}</span>
+                      )}
+                    </h3>
+                    <p className="text-gray-400 text-sm">{session.user.email}</p>
+                  </div>
+                  <Button
+                    onClick={handleSignOut}
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center justify-center gap-4 text-white">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                <span className="text-xl font-mono">{currentTime}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Date Selector */}
+          <Card className="mb-6 bg-gray-800/90 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Select Date
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-gray-700 text-white border-gray-600 max-w-xs"
+              />
+            </CardContent>
+          </Card>
+
+          {/* 24 Hour Schedule Grid */}
+          <Card className="mb-6 bg-gray-800/90 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white">Editable 24 Hour Schedule</CardTitle>
+              <p className="text-gray-400">Click on any time slot to edit</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {timeSlots.map((slot) => (
+                  <Dialog key={slot.time}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleSlotClick(slot.time)}
+                        className={`h-16 flex flex-col items-center justify-center text-sm ${
+                          slot.status === "available"
+                            ? "bg-green-700/30 border-green-600 text-green-100 hover:bg-green-700/50"
+                            : "bg-red-700/30 border-red-600 text-red-100 hover:bg-red-700/50"
+                        }`}
+                      >
+                        <span className="font-mono font-bold">{slot.time}</span>
+                        <span className="text-xs truncate w-full text-center">
+                          {slot.activity || (slot.status === "available" ? "Available" : "Unavailable")}
+                        </span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-gray-800 border-gray-700">
+                      <DialogHeader>
+                        <DialogTitle className="text-white">Edit Time Slot: {slot.time}</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="status" className="text-white">
+                            Status
+                          </Label>
+                          <Select
+                            value={formData.status}
+                            onValueChange={(value: "free" | "busy") =>
+                              setFormData((prev) => ({ ...prev, status: value }))
+                            }
+                          >
+                            <SelectTrigger className="bg-gray-700 text-white border-gray-600">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-gray-700 border-gray-600">
+                              <SelectItem value="free" className="text-white">
+                                Available
+                              </SelectItem>
+                              <SelectItem value="busy" className="text-white">
+                                Unavailable
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="activity" className="text-white">
+                            Activity
+                          </Label>
+                          <Input
+                            id="activity"
+                            value={formData.activity}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, activity: e.target.value }))}
+                            placeholder="Enter activity name"
+                            className="bg-gray-700 text-white border-gray-600"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="description" className="text-white">
+                            Description
+                          </Label>
+                          <Textarea
+                            id="description"
+                            value={formData.description}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                            placeholder="Enter activity description"
+                            className="bg-gray-700 text-white border-gray-600"
+                            rows={3}
+                          />
+                        </div>
+                        <Button onClick={handleSaveSlot} className="w-full bg-purple-600 hover:bg-purple-700">
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Changes
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Commit Data Button */}
+          <Card className="mb-6 bg-gray-800/90 border-gray-700">
+            <CardContent className="pt-6">
+              <Button
+                onClick={handleCommitData}
+                className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-lg"
+              >
+                <Database className="w-5 h-5 mr-2" />
+                Commit Data to Database
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Footer */}
+          <div className="text-center">
+            <Link href="/">
+              <Button variant="outline" className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600">
+                Back to Login
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
