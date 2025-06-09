@@ -4,6 +4,30 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}
+
+.picbox {
+  overflow: hidden;
+  min-width: screen;
+
+}
+
+.sliding-background {
+  --imageHeight: 4096px;
+  --imageWidth: 100%;
+  background: url("/background-collage.jpeg") repeat-y;
+  height: calc(var(--imageHeight) * 2);
+  animation: slide 30s linear infinite;
+}
+
+@keyframes slide { 
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(calc(var(--imageHeight) * -1));
+  }
 }
 
 @layer utilities {

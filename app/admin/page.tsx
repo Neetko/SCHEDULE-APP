@@ -163,7 +163,7 @@ export default function AdminPage() {
       <div className="min-h-screen relative flex items-center justify-center">
         <div className="absolute inset-0 z-0">
           <Image
-            src="/background-collage.jpg"
+            src="/background-collage.jpeg"
             alt="Background collage"
             fill
             className="object-cover opacity-10"
@@ -191,13 +191,18 @@ export default function AdminPage() {
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="/background-collage.jpg"
+          src="/background-collage.jpeg"
           alt="Background collage"
           fill
           className="object-cover opacity-10"
           priority
         />
         <div className="absolute inset-0 bg-black/60" />
+      </div>
+
+      {/* Sliding Background Image Container */}
+      <div className="container">
+        <div className="sliding-background"></div>
       </div>
 
       {/* Content */}

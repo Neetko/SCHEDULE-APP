@@ -35,17 +35,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4">
+    <div className="min-h-screen max-h-screen overflow scroll-y-none relative flex items-center justify-center">
       {/* Background Image */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src="/background-collage.jpg"
-          alt="Background collage"
-          fill
-          className="object-cover opacity-20"
-          priority
-        />
-        <div className="absolute inset-0 bg-black/40" />
+      {/* Sliding Background Image Container */}
+      <div className="picbox absolute w-screen ">
+        <div className="sliding-background"></div>
       </div>
 
       {/* Login Card */}

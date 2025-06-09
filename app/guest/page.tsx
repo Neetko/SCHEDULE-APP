@@ -160,7 +160,7 @@ export default function GuestPage() {
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <Image
-            src="/background-collage.jpg"
+            src="/background-collage.jpeg"
             alt="Background collage"
             fill
             className="object-cover opacity-10 animate-pulse"
@@ -187,7 +187,7 @@ export default function GuestPage() {
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 animate-pulse">
           <Image
-            src="/background-collage.jpg"
+            src="/background-collage.jpeg"
             alt="Background collage"
             fill
             className="object-cover opacity-20"
@@ -429,6 +429,11 @@ export default function GuestPage() {
         </div>
       </div>
 
+      {/* Sliding Background Image Container */}
+      <div className="container">
+        <div className="sliding-background"></div>
+      </div>
+
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
@@ -443,6 +448,31 @@ export default function GuestPage() {
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.5);
+        }
+        .container {
+          position: relative;
+          width: 100%;
+          height: 100vh;
+          overflow: hidden;
+        }
+        .sliding-background {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-image: url('/background-collage.jpeg');
+          background-size: cover;
+          background-position: center;
+          animation: slide 30s linear infinite;
+        }
+        @keyframes slide {
+          0% {
+            transform: translateY(0);
+          }
+          100% {
+            transform: translateY(-100%);
+          }
         }
       `}</style>
     </div>
