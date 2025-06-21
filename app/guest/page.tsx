@@ -182,31 +182,24 @@ export default function GuestPage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Scrolling Background */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 animate-pulse">
-          <Image
-            src="/background-collage.jpeg"
-            alt="Background collage"
-            fill
-            className="object-cover opacity-20"
-            priority
-          />
-        </div>
-        <div className="absolute inset-0 bg-black/60" />
+    <div className="min-h-screen relative overflow-y-auto">
+      {/* Background Image */}
+      {/* Sliding Background Image Container */}
+      <div className="picbox2 w-screen">
+        <div className="sliding-background"></div>
+        <div className="absolute inset-0 bg-black/60 z-0"></div> {/* Opaque black layer */}
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-4 space-y-6">
+      <div className="relative z-10 min-h-screen flex flex-col items-center space-y-6 pt-8 pb-8">
         {/* Today's Schedule Card */}
-        <Card className="w-full max-w-2xl bg-black/80 backdrop-blur-sm border-white/20 text-white">
+        <Card className="w-full max-w-2xl bg-black/80 backdrop-blur-sm border-white/20 text-white pt-4">
           <div className="p-8">
             {/* Header */}
             <div className="text-center mb-8">
               <div className="text-center mb-4">
                 <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
-                  Nikov plan za danas
+                  Nikov Raspored
                 </h1>
               </div>
               <div className="flex items-center justify-center gap-2 text-gray-300">
@@ -297,7 +290,7 @@ export default function GuestPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowHistorical(!showHistorical)}
-                className="border-white/20 text-white hover:bg-white/10"
+                className="border-gray-600 text-gray-200 bg-gray-900/70 hover:bg-gray-800/80 hover:text-white transition-colors"
               >
                 {showHistorical ? "Sakrij" : "Prikaži"}
               </Button>
@@ -421,17 +414,12 @@ export default function GuestPage() {
           <Link href="/">
             <Button
               variant="outline"
-              className="bg-gray-700/50 text-white border-gray-600 hover:bg-gray-600/50 backdrop-blur-sm"
+              className="border-gray-600 text-gray-200 bg-gray-900/70 hover:bg-gray-800/80 hover:text-white transition-colors"
             >
               Back to Login
             </Button>
           </Link>
         </div>
-      </div>
-
-      {/* Sliding Background Image Container */}
-      <div className="container">
-        <div className="sliding-background"></div>
       </div>
 
       <style jsx global>{`
@@ -448,31 +436,6 @@ export default function GuestPage() {
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.5);
-        }
-        .container {
-          position: relative;
-          width: 100%;
-          height: 100vh;
-          overflow: hidden;
-        }
-        .sliding-background {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background-image: url('/background-collage.jpeg');
-          background-size: cover;
-          background-position: center;
-          animation: slide 30s linear infinite;
-        }
-        @keyframes slide {
-          0% {
-            transform: translateY(0);
-          }
-          100% {
-            transform: translateY(-100%);
-          }
         }
       `}</style>
     </div>

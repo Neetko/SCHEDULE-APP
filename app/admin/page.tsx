@@ -189,65 +189,17 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen relative">
       {/* Background Image */}
-      <div className="absolute inset-0 z-0">
-        <Image
-          src="/background-collage.jpeg"
-          alt="Background collage"
-          fill
-          className="object-cover opacity-10"
-          priority
-        />
-        <div className="absolute inset-0 bg-black/60" />
-      </div>
-
-      {/* Sliding Background Image Container */}
-      <div className="container">
+      <div className="picbox2 fixed w-screen h-screen">
         <div className="sliding-background"></div>
+        <div className="absolute inset-0 bg-black/60 z-0"></div> {/* Opaque black layer */}
       </div>
 
       {/* Content */}
       <div className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          {/* Header with User Profile */}
+          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-4xl md:text-6xl font-bold text-purple-400 mb-4">Admin Panel</h1>
-
-            {/* User Profile Card */}
-            <Card className="mb-6 bg-gray-800/90 border-gray-700 max-w-md mx-auto">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <Image
-                      src={getDiscordAvatarUrl(session.user.id, session.user.avatar) || "/placeholder.svg"}
-                      alt={`${session.user.username}'s avatar`}
-                      width={48}
-                      height={48}
-                      className="rounded-full border-2 border-purple-400"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-800"></div>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <h3 className="text-white font-semibold">
-                      {session.user.username}
-                      {session.user.discriminator && session.user.discriminator !== "0" && (
-                        <span className="text-gray-400">#{session.user.discriminator}</span>
-                      )}
-                    </h3>
-                    <p className="text-gray-400 text-sm">{session.user.email}</p>
-                  </div>
-                  <Button
-                    onClick={handleSignOut}
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
             <div className="flex items-center justify-center gap-4 text-white">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
@@ -277,8 +229,6 @@ export default function AdminPage() {
           {/* 24 Hour Schedule Grid */}
           <Card className="mb-6 bg-gray-800/90 border-gray-700">
             <CardHeader>
-              <CardTitle className="text-white">Editable 24 Hour Schedule</CardTitle>
-              <p className="text-gray-400">Click on any time slot to edit</p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -380,11 +330,18 @@ export default function AdminPage() {
 
           {/* Footer */}
           <div className="text-center">
-            <Link href="/">
+            <Link href="/guest">
               <Button variant="outline" className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600">
-                Back to Login
+                Go to Guest Page
               </Button>
             </Link>
+            <Button
+              onClick={handleSignOut}
+              variant="outline"
+              className="bg-gray-700 text-white border-gray-600 hover:bg-gray-600 ml-4"
+            >
+              Log Out
+            </Button>
           </div>
         </div>
       </div>
