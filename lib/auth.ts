@@ -18,12 +18,23 @@ export const authOptions: NextAuthOptions = {
       // Persist the Discord access token and user ID to the token
       if (account && profile) {
         token.accessToken = account.access_token
-        //token.id = profile.uid
+        // Use account.providerAccountId for Discord user ID (always present)
+        token.id = account.providerAccountId
         token.username = (profile as any).username
         token.discriminator = (profile as any).discriminator
         token.avatar = (profile as any).avatar
       }
       return token
+    },
+    async signIn({ user, account, profile }) {
+      // Only allow your own Discord ID to log in
+      const allowedDiscordId = process.env.ADMIN_DISCORD_ID || "YOUR_DISCORD_USER_ID";
+      const discordId = account?.providerAccountId;
+      if (discordId === allowedDiscordId) {
+        return true; // allow sign-in
+      } else {
+        return false; // deny sign-in
+      }
     },
     async session({ session, token }) {
       // Send properties to the client
@@ -37,25 +48,8 @@ export const authOptions: NextAuthOptions = {
         // Store or update user in Supabase only if configured
         if (isSupabaseConfigured && session.user.email) {
           try {
-            // Check if the user already exists
-            const { data: existingUsers, error: fetchError } = await supabase
-              .from("users")
-              .select("id")
-              .eq("id", session.user.id)
-
-            if (fetchError) {
-              console.error("Error fetching user from Supabase:", fetchError)
-            }
-
-            if (!existingUsers || existingUsers.length === 0) {
-              // Check if this is the first user to mark as admin
-              const { data: allUsers, error: countError } = await supabase
-                .from("users")
-                .select("id")
-
-              const isAdmin = !countError && allUsers && allUsers.length === 0
-
-              const { error } = await supabase.from("users").insert({
+            const { error } = await supabase.from("users").upsert(
+              {
                 id: session.user.id,
                 email: session.user.email,
                 name: session.user.name,
@@ -64,27 +58,17 @@ export const authOptions: NextAuthOptions = {
                 avatar: session.user.avatar,
                 image: session.user.image,
                 last_login: new Date().toISOString(),
-                role: isAdmin ? "admin" : "user",
-              })
+              },
+              {
+                onConflict: "id",
+              },
+            )
 
-              if (error) {
-                console.error("Error creating user in Supabase:", error)
-              } else {
-                console.log("User successfully created in Supabase:", session.user)
-              }
-            } else {
-              // Update last login for existing user
-              const { error } = await supabase
-                .from("users")
-                .update({ last_login: new Date().toISOString() })
-                .eq("id", session.user.id)
-
-              if (error) {
-                console.error("Error updating user in Supabase:", error)
-              }
+            if (error) {
+              console.error("Error storing user in Supabase:", error)
             }
           } catch (error) {
-            console.error("Failed to store or update user in Supabase:", error)
+            console.error("Failed to store user in Supabase:", error)
           }
         }
       }
