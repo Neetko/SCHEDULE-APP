@@ -15,6 +15,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { ScheduleService } from "@/lib/schedule-service"
 import { isSupabaseConfigured } from "@/lib/supabase"
+import { TodosService } from "@/lib/todos-service"
 
 interface TimeSlot {
   time: string
@@ -62,7 +63,7 @@ export default function AdminPage() {
             time,
             status: dbSlot?.status === "free" ? "available" : "unavailable",
             activity: dbSlot?.activity || "",
-            description: dbSlot?.description || "",
+            description: dbSlot?.x || "",
           })
         }
         setTimeSlots(slots)
@@ -171,6 +172,53 @@ export default function AdminPage() {
     return `https://cdn.discordapp.com/avatars/${userId}/${avatar}.png?size=128`
   }
 
+  // --- To-Do List State and Handlers ---
+  const [todoText, setTodoText] = useState("")
+  const [todos, setTodos] = useState<Array<{ id: string; text: string; completed: boolean }>>([])
+
+  // Fetch todos from DB
+  useEffect(() => {
+    const fetchTodos = async () => {
+      if (!isSupabaseConfigured) return
+      try {
+        const result = await TodosService.getTodos()
+        setTodos(result)
+      } catch (error) {
+        console.error("Error fetching todos:", error)
+      }
+    }
+    fetchTodos()
+  }, [])
+
+  const handleAddTodo = async () => {
+    if (!todoText.trim() || !isSupabaseConfigured) return
+    try {
+      const newTodo = await TodosService.addTodo(todoText.trim())
+      setTodos((prev) => [...prev, newTodo])
+      setTodoText("")
+    } catch (error) {
+      console.error("Error adding todo:", error)
+    }
+  }
+
+  const handleToggleTodo = async (id: string, completed: boolean) => {
+    try {
+      await TodosService.updateTodo(id, { completed: !completed })
+      setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, completed: !completed } : todo)))
+    } catch (error) {
+      console.error("Error updating todo:", error)
+    }
+  }
+
+  const handleDeleteTodo = async (id: string) => {
+    try {
+      await TodosService.deleteTodo(id)
+      setTodos((prev) => prev.filter((todo) => todo.id !== id))
+    } catch (error) {
+      console.error("Error deleting todo:", error)
+    }
+  }
+
   // Show loading state while checking authentication
   if (status === "loading") {
     return (
@@ -242,8 +290,7 @@ export default function AdminPage() {
 
           {/* 24 Hour Schedule Grid */}
           <Card className="mb-6 bg-gray-800/90 border-gray-700">
-            <CardHeader>
-            </CardHeader>
+            <CardHeader></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {timeSlots.map((slot) => (
@@ -339,6 +386,55 @@ export default function AdminPage() {
                 <Database className="w-5 h-5 mr-2" />
                 Commit Data to Database
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* To-Do List Box */}
+          <Card className="mb-6 bg-gray-800/90 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">To-Do List</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2 mb-4">
+                <Input
+                  value={todoText}
+                  onChange={(e) => setTodoText(e.target.value)}
+                  placeholder="Add a new to-do item"
+                  className="bg-gray-700 text-white border-gray-600 flex-1"
+                />
+                <Button onClick={handleAddTodo} className="bg-purple-600 hover:bg-purple-700 text-white">
+                  Add
+                </Button>
+              </div>
+              <ul className="space-y-2">
+                {todos.map((todo) => (
+                  <li key={todo.id} className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleTodo(todo.id, todo.completed)}
+                      className={`border-gray-600 ${
+                        todo.completed
+                          ? "bg-green-700/30 text-green-100 line-through"
+                          : "bg-gray-700 text-white"
+                      }`}
+                    >
+                      {todo.completed ? "✓" : ""}
+                    </Button>
+                    <span className={`flex-1 ${todo.completed ? "line-through text-gray-400" : "text-white"}`}>
+                      {todo.text}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteTodo(todo.id)}
+                      className="border-red-600 text-red-400 hover:bg-red-700/30"
+                    >
+                      Delete
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
 

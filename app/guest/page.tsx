@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
 import Link from "next/link"
 import { ScheduleService } from "@/lib/schedule-service"
+import { TodosService } from "@/lib/todos-service"
 import { isSupabaseConfigured } from "@/lib/supabase"
 
 export default function GuestPage() {
@@ -20,6 +21,7 @@ export default function GuestPage() {
   const [todaySchedule, setTodaySchedule] = useState<Record<string, { status: string; activity: string }>>({})
   const [historicalSchedule, setHistoricalSchedule] = useState<Record<string, { status: string; activity: string }>>({})
   const [activityStats, setActivityStats] = useState<[string, number][]>([])
+  const [todos, setTodos] = useState<Array<{ id: string; text: string; completed: boolean }>>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -53,6 +55,20 @@ export default function GuestPage() {
       loadHistoricalSchedule()
     }
   }, [selectedHistoricalDate, showHistorical])
+
+  // Fetch todos on mount
+  useEffect(() => {
+    const fetchTodos = async () => {
+      if (!isSupabaseConfigured) return
+      try {
+        const result = await TodosService.getTodos()
+        setTodos(result)
+      } catch (error) {
+        console.error("Error fetching todos:", error)
+      }
+    }
+    fetchTodos()
+  }, [])
 
   const loadInitialData = async () => {
     setLoading(true)
@@ -220,6 +236,25 @@ export default function GuestPage() {
               </div>
             </div>
 
+            {/* Rudimentary To Do List */}
+            {/* To Do List */}
+            <div className="mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
+              <h2 className="text-xl font-semibold mb-2">To Do List</h2>
+              <ul className="list-disc pl-5 space-y-1">
+                {todos.length === 0 ? (
+                  <li className="text-gray-400">No tasks yet.</li>
+                ) : (
+                  todos.map((todo) => (
+                    <li key={todo.id} className={todo.completed ? "line-through text-gray-400" : "text-white"}>
+                      {todo.text}
+                    </li>
+                  ))
+                )}
+              </ul>
+              <div className="mt-2 text-xs text-gray-400">
+                (Tasks are managed on the admin page)
+              </div>
+            </div>
             {/* Current Status */}
             <div className="mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
               <h2 className="text-xl font-semibold mb-2">Trenutno</h2>
