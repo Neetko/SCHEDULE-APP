@@ -45,19 +45,33 @@ export default function AdminPage() {
   }, [session, status, router])
 
   // Initialize time slots
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>(() => {
-    const slots: TimeSlot[] = []
-    for (let i = 0; i < 24; i++) {
-      const time = `${i.toString().padStart(2, "0")}:00`
-      slots.push({
-        time,
-        status: "available",
-        activity: "",
-        description: "",
-      })
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+
+  // Fetch time slots from the database when selectedDate changes
+  useEffect(() => {
+    const fetchTimeSlots = async () => {
+      if (!isSupabaseConfigured || !selectedDate) return
+      try {
+        const schedule = await ScheduleService.getScheduleForDate(selectedDate)
+        // schedule is expected to be an object: { 'HH:MM:SS': { status, activity } }
+        const slots: TimeSlot[] = []
+        for (let i = 0; i < 24; i++) {
+          const time = `${i.toString().padStart(2, "0")}:00`
+          const dbSlot = schedule[`${time}:00`] // DB uses HH:MM:SS
+          slots.push({
+            time,
+            status: dbSlot?.status === "free" ? "available" : "unavailable",
+            activity: dbSlot?.activity || "",
+            description: dbSlot?.description || "",
+          })
+        }
+        setTimeSlots(slots)
+      } catch (error) {
+        console.error("Error fetching schedule from DB:", error)
+      }
     }
-    return slots
-  })
+    fetchTimeSlots()
+  }, [selectedDate])
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -84,7 +98,7 @@ export default function AdminPage() {
     if (slot) {
       setSelectedSlot(time)
       setFormData({
-        activity: slot.activity,
+        activity: "", // Always start empty
         status: slot.status === "available" ? "free" : "busy",
         description: slot.description,
       })
