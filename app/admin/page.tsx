@@ -63,7 +63,7 @@ export default function AdminPage() {
             time,
             status: dbSlot?.status === "free" ? "available" : "unavailable",
             activity: dbSlot?.activity || "",
-            description: dbSlot?.x || "",
+            description: dbSlot?.description || "",
           })
         }
         setTimeSlots(slots)

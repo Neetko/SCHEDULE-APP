@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, BarChart3, RefreshCw, Clock, Calendar } from "lucide-react"
@@ -13,6 +13,7 @@ import { isSupabaseConfigured } from "@/lib/supabase"
 
 export default function GuestPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
+  const currentSlotRef = useRef<HTMLDivElement | null>(null)
   const [currentDate, setCurrentDate] = useState("")
   const [selectedHistoricalDate, setSelectedHistoricalDate] = useState(new Date())
   const [showHistorical, setShowHistorical] = useState(false)
@@ -239,14 +240,30 @@ export default function GuestPage() {
             {/* Rudimentary To Do List */}
             {/* To Do List */}
             <div className="mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
-              <h2 className="text-xl font-semibold mb-2">To Do List</h2>
-              <ul className="list-disc pl-5 space-y-1">
+              <h2 className="text-xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
+                To Do List
+              </h2>
+              <ul className="space-y-1">
                 {todos.length === 0 ? (
                   <li className="text-gray-400">No tasks yet.</li>
                 ) : (
                   todos.map((todo) => (
-                    <li key={todo.id} className={todo.completed ? "line-through text-gray-400" : "text-white"}>
-                      {todo.text}
+                    <li key={todo.id} className="flex items-center gap-2">
+                      <span
+                        className={`inline-block w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          todo.completed
+                            ? "bg-green-600 border-green-700"
+                            : "bg-gray-700 border-gray-500"
+                        }`}
+                        aria-label={todo.completed ? "Completed" : "Incomplete"}
+                      >
+                        {todo.completed ? (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : null}
+                      </span>
+                      <span className={todo.completed ? "line-through text-gray-400" : "text-white"}>{todo.text}</span>
                     </li>
                   ))
                 )}
@@ -255,26 +272,12 @@ export default function GuestPage() {
                 (Tasks are managed on the admin page)
               </div>
             </div>
-            {/* Current Status */}
-            <div className="mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
-              <h2 className="text-xl font-semibold mb-2">Trenutno</h2>
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-3 h-3 rounded-full ${getStatusColor(todaySchedule[getCurrentHour()]?.status || "free")}`}
-                />
-                <span className="text-lg">{todaySchedule[getCurrentHour()]?.activity || "Available"}</span>
-                <Badge
-                  variant={getStatusBadgeVariant(todaySchedule[getCurrentHour()]?.status || "free")}
-                  className={`text-white bg-black ${todaySchedule[getCurrentHour()]?.status === "free" ? "border-green-500" : "border-red-500"}`}
-                >
-                  {todaySchedule[getCurrentHour()]?.status === "free" ? "Slobodan" : "Zauzet"}
-                </Badge>
-              </div>
-            </div>
 
             {/* Schedule Grid */}
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold mb-4">Raspored za danas</h3>
+              <h3 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
+                Raspored za danas
+              </h3>
               <div className="grid gap-2 max-h-64 overflow-y-auto custom-scrollbar">
                 {Object.entries(todaySchedule).map(([time, data]) => {
                   const isCurrentHour = time === getCurrentHour()
@@ -284,23 +287,27 @@ export default function GuestPage() {
                   return (
                     <div
                       key={time}
+                      ref={isCurrentHour ? (el) => { if (el) currentSlotRef.current = el } : undefined}
                       className={`flex items-center justify-between p-3 rounded-lg transition-all ${
                         isCurrentHour ? "bg-white/20 border border-white/30" : "bg-white/5 hover:bg-white/10"
                       }`}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="font-mono text-sm w-12 flex-shrink-0">{displayTime}</span>
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(data.status)}`} />
-                        <span className={`truncate flex-1 ${isCurrentHour ? "font-semibold" : ""}`}>
-                          {data.activity}
-                        </span>
+                        <span className="font-mono text-lg font-bold w-16 flex-shrink-0 text-white drop-shadow-sm">{displayTime}</span>
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${getStatusColor(data.status)}`} />
+                        {/* Remove activity text if status is 'free' (Available) */}
+                        {data.status !== "free" && (
+                          <span className={`truncate flex-1 ${isCurrentHour ? "font-semibold" : ""}`}>{data.activity}</span>
+                        )}
                       </div>
-                      <Badge
-                        variant={getStatusBadgeVariant(data.status)}
-                        className={`text-xs text-white bg-black flex-shrink-0 ml-2 ${data.status === "free" ? "border-green-500" : "border-red-500"}`}
-                      >
-                        {data.status === "free" ? "Slobodan" : "Zauzet"}
-                      </Badge>
+                      {isCurrentHour && (
+                        <Badge
+                          variant={getStatusBadgeVariant(data.status)}
+                          className={`text-xs text-white bg-black flex-shrink-0 ml-2 ${data.status === "free" ? "border-green-500" : "border-red-500"}`}
+                        >
+                          {data.status === "free" ? "Dostupan" : "Nedostupan"}
+                        </Badge>
+                      )}
                     </div>
                   )
                 })}
