@@ -12,8 +12,47 @@ import { TodosService } from "@/lib/todos-service"
 import { isSupabaseConfigured } from "@/lib/supabase"
 
 export default function GuestPage() {
+  // Language state: 'hr' or 'en'
+  const [lang, setLang] = useState<'hr' | 'en'>('hr')
+
+  // Static text translations
+  const TEXT = {
+    mainTitle: {
+      hr: 'Nikov Raspored',
+      en: "Niko's Schedule",
+    },
+    todoList: {
+      hr: 'To Do List',
+      en: 'To Do List',
+    },
+    scheduleToday: {
+      hr: 'Raspored za danas',
+      en: 'Schedule for Today',
+    },
+    available: {
+      hr: 'Dostupan',
+      en: 'Available',
+    },
+    unavailable: {
+      hr: 'Nedostupan',
+      en: 'Unavailable',
+    },
+    noTasks: {
+      hr: 'Nema zadataka.',
+      en: 'No tasks yet.',
+    },
+    managedOnAdmin: {
+      hr: '(Zadaci se uređuju na admin stranici)',
+      en: '(Tasks are managed on the admin page)',
+    },
+    footer: {
+      hr: 'Raspored se ažurira automatski u ponoć',
+      en: 'Schedule updates automatically at midnight',
+    },
+  }
   const [currentTime, setCurrentTime] = useState(new Date())
   const currentSlotRef = useRef<HTMLDivElement | null>(null)
+  const gridContainerRef = useRef<HTMLDivElement | null>(null)
   const [currentDate, setCurrentDate] = useState("")
   const [selectedHistoricalDate, setSelectedHistoricalDate] = useState(new Date())
   const [showHistorical, setShowHistorical] = useState(false)
@@ -44,6 +83,26 @@ export default function GuestPage() {
 
     return () => clearInterval(interval)
   }, [])
+
+  // Scroll to current slot only once on initial mount
+  const didScrollRef = useRef(false)
+  useEffect(() => {
+    if (!didScrollRef.current && currentSlotRef.current && gridContainerRef.current) {
+      setTimeout(() => {
+        const slot = currentSlotRef.current
+        const container = gridContainerRef.current
+        if (slot && container) {
+          // Calculate offset of slot relative to container
+          const slotTop = slot.offsetTop - container.offsetTop
+          container.scrollTo({
+            top: slotTop,
+            behavior: "smooth"
+          })
+        }
+      }, 0)
+      didScrollRef.current = true
+    }
+  }, [todaySchedule])
 
   // Load initial data
   useEffect(() => {
@@ -96,12 +155,11 @@ export default function GuestPage() {
           } else if (i >= 22) {
             emptySchedule[hour] = { status: "busy", activity: "Personal time" }
           } else {
-            emptySchedule[hour] = { status: "free", activity: "Available" }
+            emptySchedule[hour] = { status: "free", activity: "" } // Default to empty activity
           }
         }
         setTodaySchedule(emptySchedule)
         setActivityStats([
-          ["Available", 15],
           ["Work meeting", 8],
           ["Personal time", 5],
           ["Sleeping", 4],
@@ -216,7 +274,7 @@ export default function GuestPage() {
             <div className="text-center mb-8">
               <div className="text-center mb-4">
                 <h1 className="text-4xl md:text-6xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
-                  Nikov Raspored
+                  {TEXT.mainTitle[lang]}
                 </h1>
               </div>
               <div className="flex items-center justify-center gap-2 text-gray-300">
@@ -237,15 +295,24 @@ export default function GuestPage() {
               </div>
             </div>
 
-            {/* Rudimentary To Do List */}
+            {/* Language Toggle */}
+            <div className="flex justify-end mb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-gray-600 text-gray-200 bg-gray-900/70 hover:bg-gray-800/80 hover:text-white transition-colors px-3 py-1"
+                onClick={() => setLang(lang === 'hr' ? 'en' : 'hr')}
+              >
+                {lang === 'hr' ? 'ENG' : 'HR'}
+              </Button>
+            </div>
+
             {/* To Do List */}
             <div className="mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
-              <h2 className="text-xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
-                To Do List
-              </h2>
+              <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight mb-2">{TEXT.todoList[lang]}</h2>
               <ul className="space-y-1">
                 {todos.length === 0 ? (
-                  <li className="text-gray-400">No tasks yet.</li>
+                  <li className="text-gray-400">{TEXT.noTasks[lang]}</li>
                 ) : (
                   todos.map((todo) => (
                     <li key={todo.id} className="flex items-center gap-2">
@@ -255,7 +322,7 @@ export default function GuestPage() {
                             ? "bg-green-600 border-green-700"
                             : "bg-gray-700 border-gray-500"
                         }`}
-                        aria-label={todo.completed ? "Completed" : "Incomplete"}
+                        aria-label={todo.completed ? (lang === 'hr' ? 'Završeno' : 'Completed') : (lang === 'hr' ? 'Nedovršeno' : 'Incomplete')}
                       >
                         {todo.completed ? (
                           <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -269,45 +336,56 @@ export default function GuestPage() {
                 )}
               </ul>
               <div className="mt-2 text-xs text-gray-400">
-                (Tasks are managed on the admin page)
+                {TEXT.managedOnAdmin[lang]}
               </div>
             </div>
 
             {/* Schedule Grid */}
             <div className="space-y-2">
-              <h3 className="text-xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight">
-                Raspored za danas
-              </h3>
-              <div className="grid gap-2 max-h-64 overflow-y-auto custom-scrollbar">
+              <h3 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent tracking-tight mb-4">{TEXT.scheduleToday[lang]}</h3>
+              <div className="grid gap-2 max-h-64 overflow-y-auto custom-scrollbar" ref={gridContainerRef}>
                 {Object.entries(todaySchedule).map(([time, data]) => {
                   const isCurrentHour = time === getCurrentHour()
                   // Format time to remove seconds for cleaner display
                   const displayTime = time.substring(0, 5) // Convert HH:MM:SS to HH:MM
 
+                  // Determine border color for current slot
+                  const borderColor = data.status === "free"
+                    ? "border-green-400"
+                    : "border-red-400"
+                  const boxShadow = data.status === "free"
+                    ? "0 0 0 6px rgba(34,197,94,0.15)" // green-500 with 15% opacity
+                    : "0 0 0 6px rgba(239,68,68,0.15)" // red-500 with 15% opacity
+
                   return (
                     <div
                       key={time}
-                      ref={isCurrentHour ? (el) => { if (el) currentSlotRef.current = el } : undefined}
+                      ref={isCurrentHour ? currentSlotRef : undefined}
                       className={`flex items-center justify-between p-3 rounded-lg transition-all ${
-                        isCurrentHour ? "bg-white/20 border border-white/30" : "bg-white/5 hover:bg-white/10"
+                        isCurrentHour
+                          ? `bg-white/20 border-2 ${borderColor}`
+                          : "bg-white/5 hover:bg-white/10 border border-transparent"
                       }`}
+                      style={isCurrentHour ? { boxShadow } : undefined}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <span className="font-mono text-lg font-bold w-16 flex-shrink-0 text-white drop-shadow-sm">{displayTime}</span>
                         <div className={`w-3 h-3 rounded-full flex-shrink-0 ${getStatusColor(data.status)}`} />
-                        {/* Remove activity text if status is 'free' (Available) */}
-                        {data.status !== "free" && (
+                        {/* Show activity text if present, regardless of status; otherwise show empty space */}
+                        {(data.activity && data.activity.trim() !== "" && data.activity.trim().toLowerCase() !== "available") ? (
                           <span className={`truncate flex-1 ${isCurrentHour ? "font-semibold" : ""}`}>{data.activity}</span>
+                        ) : (
+                          <span className="truncate flex-1">&nbsp;</span>
                         )}
                       </div>
-                      {isCurrentHour && (
-                        <Badge
-                          variant={getStatusBadgeVariant(data.status)}
-                          className={`text-xs text-white bg-black flex-shrink-0 ml-2 ${data.status === "free" ? "border-green-500" : "border-red-500"}`}
-                        >
-                          {data.status === "free" ? "Dostupan" : "Nedostupan"}
-                        </Badge>
-                      )}
+                      <Badge
+                        variant={getStatusBadgeVariant(data.status)}
+                        className={`text-xs text-white bg-black flex-shrink-0 ml-2 ${
+                          data.status === "free" ? "border-green-500" : "border-red-500"
+                        }`}
+                      >
+                        {data.status === "free" ? TEXT.available[lang] : TEXT.unavailable[lang]}
+                      </Badge>
                     </div>
                   )
                 })}
@@ -316,7 +394,7 @@ export default function GuestPage() {
 
             {/* Footer */}
             <div className="mt-6 text-center text-sm text-gray-400">
-              <p>Raspored se ažurira automatski u ponoć</p>
+              <p>{TEXT.footer[lang]}</p>
             </div>
           </div>
         </Card>

@@ -25,6 +25,83 @@ interface TimeSlot {
 }
 
 export default function AdminPage() {
+  // Range selection mode for batch edit
+  const [batchRangeMode, setBatchRangeMode] = useState(false)
+  const [batchRangeStart, setBatchRangeStart] = useState<string | null>(null)
+  const [batchRangeEnd, setBatchRangeEnd] = useState<string | null>(null)
+  // Modal state for batch edit
+  const [showBatchModal, setShowBatchModal] = useState(false)
+  // Batch form state
+  const [batchForm, setBatchForm] = useState({
+    activity: "",
+    status: "free" as "free" | "busy",
+    description: "",
+  })
+  const [selectedBatchSlots, setSelectedBatchSlots] = useState<string[]>([])
+
+  const handleBatchSlotToggle = (time: string) => {
+    // Used only for legacy multi-select, not for range selection
+    setSelectedBatchSlots((prev) =>
+      prev.includes(time) ? prev.filter((t) => t !== time) : [...prev, time]
+    )
+  }
+  // Range selection logic for batch edit
+  const handleBatchRangeSlotClick = (time: string) => {
+    if (!batchRangeStart) {
+      setBatchRangeStart(time)
+      setSelectedBatchSlots([time])
+    } else if (!batchRangeEnd) {
+      setBatchRangeEnd(time)
+      // Find all slots between start and end (inclusive)
+      const times = timeSlots.map((slot) => slot.time)
+      const startIdx = times.indexOf(batchRangeStart)
+      const endIdx = times.indexOf(time)
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx]
+        const selected = times.slice(from, to + 1)
+        setSelectedBatchSlots(selected)
+        setShowBatchModal(true)
+      }
+    }
+  }
+
+  // Reset range selection when modal closes
+  useEffect(() => {
+    if (!showBatchModal) {
+      setBatchRangeMode(false)
+      setBatchRangeStart(null)
+      setBatchRangeEnd(null)
+      setSelectedBatchSlots([])
+    }
+  }, [showBatchModal])
+  const handleBatchApply = async () => {
+    if (!isSupabaseConfigured || selectedBatchSlots.length === 0) return
+    try {
+      for (const slotTime of selectedBatchSlots) {
+        await ScheduleService.saveTimeSlot(
+          selectedDate,
+          slotTime + ":00",
+          batchForm.status,
+          batchForm.activity || (batchForm.status === "free" ? "Available" : "Busy"),
+          batchForm.description,
+        )
+      }
+      // Update local state
+      setTimeSlots((prev) =>
+        prev.map((slot) =>
+          selectedBatchSlots.includes(slot.time)
+            ? { ...slot, ...batchForm, status: batchForm.status === "free" ? "available" : "unavailable" }
+            : slot
+        )
+      )
+      setSelectedBatchSlots([])
+      setBatchForm({ activity: "", status: "free", description: "" })
+      alert("Batch update applied to selected slots!")
+    } catch (error) {
+      console.error("Error applying batch update:", error)
+      alert("Error applying batch update. Please try again.")
+    }
+  }
   const { data: session, status } = useSession()
   const router = useRouter()
   const [selectedDate, setSelectedDate] = useState("")
@@ -270,111 +347,237 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Date Selector */}
-          <Card className="mb-6 bg-gray-800/90 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Select Date
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-gray-700 text-white border-gray-600 max-w-xs"
-              />
-            </CardContent>
-          </Card>
+          {/* Main Area: Date Selector + Schedule Grid + Batch Edit Button */}
+          <div className="flex flex-col gap-6 mb-6">
+            {/* Date Selector (centered) */}
+            <div className="flex justify-center">
+              <Card className="mb-6 bg-gray-800/90 border-gray-700 max-w-xl w-full">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Select Date
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-gray-700 text-white border-gray-600 max-w-xs mx-auto"
+                  />
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* 24 Hour Schedule Grid */}
-          <Card className="mb-6 bg-gray-800/90 border-gray-700">
-            <CardHeader></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {timeSlots.map((slot) => (
-                  <Dialog key={slot.time}>
-                    <DialogTrigger asChild>
+          {/* Batch Edit Button */}
+            <div className="mb-4 flex justify-center">
+              <Button
+                onClick={() => setBatchRangeMode(true)}
+                className={`bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 text-lg font-bold ${batchRangeMode ? "opacity-60 cursor-not-allowed" : ""}`}
+                disabled={batchRangeMode}
+              >
+                {batchRangeMode ? "Select Range..." : "Batch Edit"}
+              </Button>
+            </div>
+            {batchRangeMode && (
+              <div className="mt-2 text-purple-300 text-sm text-center">Click two time slots below to select a range.</div>
+            )}
+
+            {/* Schedule Grid */}
+            <Card className="bg-gray-800/90 border-gray-700 w-full">
+              <CardHeader></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-8 gap-3 w-full">
+                  {timeSlots.map((slot) => (
+                    batchRangeMode ? (
                       <Button
-                        variant="outline"
-                        onClick={() => handleSlotClick(slot.time)}
-                        className={`h-16 flex flex-col items-center justify-center text-sm ${
-                          slot.status === "available"
-                            ? "bg-green-700/30 border-green-600 text-green-100 hover:bg-green-700/50"
-                            : "bg-red-700/30 border-red-600 text-red-100 hover:bg-red-700/50"
+                        key={slot.time}
+                        variant={selectedBatchSlots.includes(slot.time) ? "default" : "outline"}
+                        onClick={() => handleBatchRangeSlotClick(slot.time)}
+                        className={`h-16 flex flex-col items-center justify-center text-sm font-mono ${
+                          selectedBatchSlots.includes(slot.time)
+                            ? "bg-purple-700/60 text-purple-100 border-purple-600"
+                            : slot.status === "available"
+                              ? "bg-green-700/30 border-green-600 text-green-100 hover:bg-green-700/50"
+                              : "bg-red-700/30 border-red-600 text-red-100 hover:bg-red-700/50"
                         }`}
+                        disabled={selectedBatchSlots.length === timeSlots.length}
                       >
-                        <span className="font-mono font-bold">{slot.time}</span>
-                        <span className="text-xs truncate w-full text-center">
-                          {slot.activity || (slot.status === "available" ? "Available" : "Unavailable")}
-                        </span>
+                        {slot.time}
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-gray-800 border-gray-700">
-                      <DialogHeader>
-                        <DialogTitle className="text-white">Edit Time Slot: {slot.time}</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="status" className="text-white">
-                            Status
-                          </Label>
-                          <Select
-                            value={formData.status}
-                            onValueChange={(value: "free" | "busy") =>
-                              setFormData((prev) => ({ ...prev, status: value }))
-                            }
+                    ) : (
+                      <Dialog key={slot.time}>
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleSlotClick(slot.time)}
+                            className={`h-16 flex flex-col items-center justify-center text-sm ${
+                              slot.status === "available"
+                                ? "bg-green-700/30 border-green-600 text-green-100 hover:bg-green-700/50"
+                                : "bg-red-700/30 border-red-600 text-red-100 hover:bg-red-700/50"
+                            }`}
                           >
-                            <SelectTrigger className="bg-gray-700 text-white border-gray-600">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-gray-700 border-gray-600">
-                              <SelectItem value="free" className="text-white">
-                                Available
-                              </SelectItem>
-                              <SelectItem value="busy" className="text-white">
-                                Unavailable
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="activity" className="text-white">
-                            Activity
-                          </Label>
-                          <Input
-                            id="activity"
-                            value={formData.activity}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, activity: e.target.value }))}
-                            placeholder="Enter activity name"
-                            className="bg-gray-700 text-white border-gray-600"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="description" className="text-white">
-                            Description
-                          </Label>
-                          <Textarea
-                            id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                            placeholder="Enter activity description"
-                            className="bg-gray-700 text-white border-gray-600"
-                            rows={3}
-                          />
-                        </div>
-                        <Button onClick={handleSaveSlot} className="w-full bg-purple-600 hover:bg-purple-700">
-                          <Save className="w-4 h-4 mr-2" />
-                          Save Changes
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                ))}
+                            <span className="font-mono font-bold">{slot.time}</span>
+                            <span className="text-xs truncate w-full text-center">
+                              {slot.activity || (slot.status === "available" ? "Available" : "Unavailable")}
+                            </span>
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-gray-800 border-gray-700">
+                          <DialogHeader>
+                            <DialogTitle className="text-white">Edit Time Slot: {slot.time}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="status" className="text-white">
+                                Status
+                              </Label>
+                              <Select
+                                value={formData.status}
+                                onValueChange={(value: "free" | "busy") =>
+                                  setFormData((prev) => ({ ...prev, status: value }))
+                                }
+                              >
+                                <SelectTrigger className="bg-gray-700 text-white border-gray-600">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-gray-700 border-gray-600">
+                                  <SelectItem value="free" className="text-white">
+                                    Available
+                                  </SelectItem>
+                                  <SelectItem value="busy" className="text-white">
+                                    Unavailable
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor="activity" className="text-white">
+                                Activity
+                              </Label>
+                              <Input
+                                id="activity"
+                                value={formData.activity}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, activity: e.target.value }))}
+                                placeholder="Enter activity name"
+                                className="bg-gray-700 text-white border-gray-600"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="description" className="text-white">
+                                Description
+                              </Label>
+                              <Textarea
+                                id="description"
+                                value={formData.description}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                                placeholder="Enter activity description"
+                                className="bg-gray-700 text-white border-gray-600"
+                                rows={3}
+                              />
+                            </div>
+                            <Button onClick={handleSaveSlot} className="w-full bg-purple-600 hover:bg-purple-700">
+                              <Save className="w-4 h-4 mr-2" />
+                              Save Changes
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Batch Edit Modal */}
+          <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
+            <DialogContent className="bg-gray-800 border-gray-700 max-w-xl">
+              <DialogHeader>
+                <DialogTitle className="text-white">Batch Edit Time Slots</DialogTitle>
+              </DialogHeader>
+              <div className="mb-4">
+                <div className="text-white mb-2">Select time slots to apply changes:</div>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {timeSlots.map((slot) => (
+                    <Button
+                      key={slot.time}
+                      variant={selectedBatchSlots.includes(slot.time) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleBatchSlotToggle(slot.time)}
+                      className={`font-mono ${
+                        selectedBatchSlots.includes(slot.time)
+                          ? slot.status === "available"
+                            ? "bg-green-700/60 text-green-100 border-green-600"
+                            : "bg-red-700/60 text-red-100 border-red-600"
+                          : "bg-gray-700 text-white border-gray-600"
+                      }`}
+                    >
+                      {slot.time}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="batch-status" className="text-white">
+                    Status
+                  </Label>
+                  <Select
+                    value={batchForm.status}
+                    onValueChange={(value: "free" | "busy") =>
+                      setBatchForm((prev) => ({ ...prev, status: value }))
+                    }
+                  >
+                    <SelectTrigger className="bg-gray-700 text-white border-gray-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-700 border-gray-600">
+                      <SelectItem value="free" className="text-white">
+                        Available
+                      </SelectItem>
+                      <SelectItem value="busy" className="text-white">
+                        Unavailable
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="batch-activity" className="text-white">
+                    Activity
+                  </Label>
+                  <Input
+                    id="batch-activity"
+                    value={batchForm.activity}
+                    onChange={(e) => setBatchForm((prev) => ({ ...prev, activity: e.target.value }))}
+                    placeholder="Enter activity name"
+                    className="bg-gray-700 text-white border-gray-600"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="batch-description" className="text-white">
+                    Description
+                  </Label>
+                  <Textarea
+                    id="batch-description"
+                    value={batchForm.description}
+                    onChange={(e) => setBatchForm((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Enter activity description"
+                    className="bg-gray-700 text-white border-gray-600"
+                    rows={3}
+                  />
+                </div>
+                <Button
+                  onClick={() => { handleBatchApply(); setShowBatchModal(false); }}
+                  className="w-full bg-purple-600 hover:bg-purple-700 mt-2"
+                  disabled={selectedBatchSlots.length === 0}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Apply to Selected Slots
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Commit Data Button */}
           <Card className="mb-6 bg-gray-800/90 border-gray-700">
