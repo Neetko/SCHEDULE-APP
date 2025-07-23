@@ -69,12 +69,22 @@ export default function GuestPage() {
       const now = new Date()
       setCurrentTime(now)
       setCurrentDate(
-        now.toLocaleDateString("hr-HR", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
+        now.toLocaleDateString(
+          lang === 'hr' ? 'hr-HR' : 'en-US',
+          lang === 'hr'
+            ? {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              }
+            : {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              }
+        )
       )
     }
 
@@ -82,7 +92,7 @@ export default function GuestPage() {
     const interval = setInterval(updateTime, 1000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [lang])
 
   // Scroll to current slot only once on initial mount
   const didScrollRef = useRef(false)
@@ -266,10 +276,30 @@ export default function GuestPage() {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center space-y-6 pt-8 pb-8">
+      <div className="relative z-10 min-h-screen flex flex-col items-center space-y-6 pt-8 pb-8 px-2 sm:px-4 md:px-8">
         {/* Today's Schedule Card */}
         <Card className="w-full max-w-2xl bg-black/80 backdrop-blur-sm border-white/20 text-white pt-4">
           <div className="p-8">
+            {/* Language Toggle at top right */}
+            <div className="flex justify-end items-start pt-0 pr-0 pb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="relative border-gray-600 text-gray-200 bg-gray-900/70 hover:bg-gray-800/80 hover:text-white transition-colors w-8 h-8 p-0 rounded-full overflow-hidden flex items-center justify-center shadow-lg"
+                onClick={() => setLang(lang === 'hr' ? 'en' : 'hr')}
+                style={{marginLeft: 'auto'}}
+              >
+                {/* Flag background only */}
+                <span className="absolute inset-0 pointer-events-none select-none flex items-center justify-center" style={{zIndex:0}}>
+                  {lang === 'hr' ? (
+                    <img src="/flag-button-square-250-2.png" alt="Croatia flag" className="w-full h-full object-cover rounded-full" style={{filter:'brightness(1.15) contrast(1.1) drop-shadow(0 1px 2px #0006)'}} />
+                  ) : (
+                    <img src="/flag-button-round-250.png" alt="UK flag" className="w-full h-full object-cover rounded-full" style={{filter:'brightness(1.15) contrast(1.1) drop-shadow(0 1px 2px #0006)'}} />
+                  )}
+                </span>
+              </Button>
+            </div>
+
             {/* Header */}
             <div className="text-center mb-8">
               <div className="text-center mb-4">
@@ -277,35 +307,21 @@ export default function GuestPage() {
                   {TEXT.mainTitle[lang]}
                 </h1>
               </div>
-              <div className="flex items-center justify-center gap-2 text-gray-300">
-                <Calendar className="w-4 h-4" />
-                <span>{currentDate}</span>
+              <div className="flex items-center justify-center gap-2">
+                <span
+                  className="text-base md:text-lg font-semibold tracking-wide px-3 py-1 rounded-lg bg-gradient-to-r from-purple-900/60 to-pink-900/60 text-white/90 shadow-sm border border-white/10 backdrop-blur-sm"
+                  style={{ letterSpacing: '0.03em', textShadow: '0 1px 8px rgba(180, 100, 255, 0.12)' }}
+                >
+                  {currentDate.charAt(0).toUpperCase() + currentDate.slice(1)}
+                </span>
               </div>
               <div className="flex items-center justify-center gap-2 text-lg font-semibold mt-2">
                 <Clock className="w-5 h-5" />
                 <span>{currentTime.toLocaleTimeString("sr-RS")}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={refreshData}
-                  className="ml-2 text-white hover:bg-white/10 p-1 h-7"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </Button>
               </div>
             </div>
 
             {/* Language Toggle */}
-            <div className="flex justify-end mb-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-gray-600 text-gray-200 bg-gray-900/70 hover:bg-gray-800/80 hover:text-white transition-colors px-3 py-1"
-                onClick={() => setLang(lang === 'hr' ? 'en' : 'hr')}
-              >
-                {lang === 'hr' ? 'ENG' : 'HR'}
-              </Button>
-            </div>
 
             {/* To Do List */}
             <div className="mb-6 p-4 rounded-lg bg-white/10 backdrop-blur-sm">
