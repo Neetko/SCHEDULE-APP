@@ -38,6 +38,9 @@ export default function AdminPage() {
     description: "",
   })
   const [selectedBatchSlots, setSelectedBatchSlots] = useState<string[]>([])
+  // Batch image upload state
+  const [batchFiles, setBatchFiles] = useState<FileList | null>(null)
+  const [uploadingBatchImages, setUploadingBatchImages] = useState(false)
 
   const handleBatchSlotToggle = (time: string) => {
     // Used only for legacy multi-select, not for range selection
@@ -76,7 +79,10 @@ export default function AdminPage() {
   }, [showBatchModal])
   const handleBatchApply = async () => {
     if (!isSupabaseConfigured || selectedBatchSlots.length === 0) return
+    setUploadingBatchImages(true)
     try {
+      const { supabase } = await import("@/lib/supabase")
+      // Save slot data
       for (const slotTime of selectedBatchSlots) {
         await ScheduleService.saveTimeSlot(
           selectedDate,
@@ -85,6 +91,43 @@ export default function AdminPage() {
           batchForm.activity || (batchForm.status === "free" ? "Available" : "Busy"),
           batchForm.description,
         )
+      }
+      // Upload each image only once, then insert a DB row for each slot referencing the same image
+      if (batchFiles && batchFiles.length > 0) {
+        // 1. Upload each file ONCE, collect their public URLs
+        const uploadedImages: { fileName: string; url: string }[] = []
+        for (let i = 0; i < batchFiles.length; i++) {
+          const file = batchFiles[i]
+          const uuid = Math.random().toString(36).substring(2, 10)
+          const filePath = `${selectedDate}_BATCH_${uuid}_${file.name}`
+          const { data: storageData, error: storageError } = await supabase.storage
+            .from("activity-photos")
+            .upload(filePath, file, { upsert: false })
+          if (storageError) {
+            alert(`Failed to upload ${file.name}: ${storageError.message}`)
+            continue
+          }
+          const { data: publicUrlData } = supabase.storage.from("activity-photos").getPublicUrl(filePath)
+          const publicUrl = publicUrlData?.publicUrl
+          if (!publicUrl) continue
+          uploadedImages.push({ fileName: file.name, url: publicUrl })
+        }
+        // 2. For each slot, insert a DB row for each uploaded image
+        for (const slotTime of selectedBatchSlots) {
+          for (const img of uploadedImages) {
+            const { error: insertError } = await supabase.from('activity_photos').insert({
+              date: selectedDate,
+              slot_time: slotTime,
+              url: img.url,
+              title: batchForm.activity,
+              description: batchForm.description,
+            })
+            if (insertError) {
+              console.error("Insert error:", insertError)
+              alert("Failed to insert image record: " + insertError.message)
+            }
+          }
+        }
       }
       // Update local state
       setTimeSlots((prev) =>
@@ -96,10 +139,13 @@ export default function AdminPage() {
       )
       setSelectedBatchSlots([])
       setBatchForm({ activity: "", status: "free", description: "" })
+      setBatchFiles(null)
       alert("Batch update applied to selected slots!")
     } catch (error) {
       console.error("Error applying batch update:", error)
       alert("Error applying batch update. Please try again.")
+    } finally {
+      setUploadingBatchImages(false)
     }
   }
   const { data: session, status } = useSession()
@@ -675,10 +721,26 @@ export default function AdminPage() {
                     rows={3}
                   />
                 </div>
+                {/* Batch image upload UI */}
+                <div>
+                  <Label htmlFor="batch-images" className="text-white">Activity Images (applies to all selected slots)</Label>
+                  <input
+                    id="batch-images"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="block mt-2 text-white"
+                    disabled={uploadingBatchImages}
+                    onChange={(e) => setBatchFiles(e.target.files)}
+                  />
+                  {uploadingBatchImages && (
+                    <div className="text-purple-300 mt-2">Uploading images...</div>
+                  )}
+                </div>
                 <Button
-                  onClick={() => { handleBatchApply(); setShowBatchModal(false); }}
+                  onClick={async () => { await handleBatchApply(); setShowBatchModal(false); }}
                   className="w-full bg-purple-600 hover:bg-purple-700 mt-2"
-                  disabled={selectedBatchSlots.length === 0}
+                  disabled={selectedBatchSlots.length === 0 || uploadingBatchImages}
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Apply to Selected Slots

@@ -58,7 +58,18 @@ export default function GalleryFromSupabase() {
             description: meta?.description || '',
           }
         })
-        setImages(imagesWithMeta)
+        // Remove duplicates by file name
+        const getFileName = (url: string) => {
+          try {
+            return decodeURIComponent(url.split("/").pop() || "")
+          } catch {
+            return url
+          }
+        }
+        const uniqueImages = imagesWithMeta.filter((img, idx, arr) =>
+          arr.findIndex((i) => getFileName(i.url) === getFileName(img.url)) === idx
+        )
+        setImages(uniqueImages)
       } catch (e: any) {
         setError("Greška pri dohvaćanju slika iz galerije.")
         console.error(e)
