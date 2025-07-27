@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import GalleryFromSupabase from "@/components/activity-photo-gallery"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, BarChart3, RefreshCw, Clock, Calendar } from "lucide-react"
@@ -415,80 +416,13 @@ export default function GuestPage() {
           </div>
         </Card>
 
-        {/* Historical Data Card */}
+        {/* Image Gallery Card (replaces 'Prošli mjeseci') */}
         <Card className="w-full max-w-2xl bg-black/80 backdrop-blur-sm border-white/20 text-white">
           <div className="p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                Prošli mjeseci
-              </h2>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowHistorical(!showHistorical)}
-                className="border-gray-600 text-gray-200 bg-gray-900/70 hover:bg-gray-800/80 hover:text-white transition-colors"
-              >
-                {showHistorical ? "Sakrij" : "Prikaži"}
-              </Button>
-            </div>
-
-            {showHistorical && (
-              <>
-                {/* Date Navigation */}
-                <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-white/10">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigateDate("prev")}
-                    className="text-white hover:bg-white/10"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="font-semibold">
-                    {selectedHistoricalDate.toLocaleDateString("hr-HR", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigateDate("next")}
-                    className="text-white hover:bg-white/10"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Historical Schedule */}
-                <div className="grid gap-2 max-h-48 overflow-y-auto custom-scrollbar">
-                  {Object.entries(historicalSchedule).map(([time, data]) => {
-                    const displayTime = time.substring(0, 5) // Convert HH:MM:SS to HH:MM
-
-                    return (
-                      <div
-                        key={time}
-                        className="flex items-center justify-between p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <span className="font-mono text-xs w-10 flex-shrink-0">{displayTime}</span>
-                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(data.status)}`} />
-                          <span className="text-sm truncate flex-1">{data.activity}</span>
-                        </div>
-                        <Badge
-                          variant={getStatusBadgeVariant(data.status)}
-                          className={`text-xs text-white bg-black flex-shrink-0 ml-2 ${data.status === "free" ? "border-green-500" : "border-red-500"}`}
-                        >
-                          {data.status === "free" ? "Slobodan" : "Zauzet"}
-                        </Badge>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-6 text-center">
+              Galerija aktivnosti
+            </h2>
+            <GalleryFromSupabase />
           </div>
         </Card>
 

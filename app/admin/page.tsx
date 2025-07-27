@@ -171,15 +171,88 @@ export default function AdminPage() {
     return () => clearInterval(interval)
   }, [selectedDate])
 
+  // --- Image Upload State ---
+  const [slotImages, setSlotImages] = useState<Record<string, string[]>>({}) // { slotTime: [url, ...] }
+  const [uploadingImages, setUploadingImages] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null)
+
+  // Upload images to Supabase Storage and insert DB row for each
+  const handleImageUpload = async (files: FileList | null, date: string, time: string) => {
+    if (!files || !isSupabaseConfigured) return
+    setUploadingImages(true)
+    try {
+      const { supabase } = await import("@/lib/supabase")
+      const uploadedUrls: string[] = []
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        // Unique filename: date_time_slot_uuid_originalname (no folders)
+        const uuid = Math.random().toString(36).substring(2, 10)
+        const filePath = `${date}_${time.replace(':', '-')}_${uuid}_${file.name}`
+        // Upload to storage (root of bucket)
+        const { data: storageData, error: storageError } = await supabase.storage
+          .from("activity-photos")
+          .upload(filePath, file, { upsert: false })
+        if (storageError) {
+          alert(`Failed to upload ${file.name}: ${storageError.message}`)
+          continue
+        }
+        // Get public URL
+        const { data: publicUrlData } = supabase.storage.from("activity-photos").getPublicUrl(filePath)
+        const publicUrl = publicUrlData?.publicUrl
+        if (!publicUrl) continue
+        uploadedUrls.push(publicUrl)
+        // Insert DB row with error logging, now including title and description
+        const { error: insertError } = await supabase.from('activity_photos').insert({
+          date,
+          slot_time: time,
+          url: publicUrl,
+          title: formData.activity,
+          description: formData.description,
+        })
+        if (insertError) {
+          console.error("Insert error:", insertError)
+          alert("Failed to insert image record: " + insertError.message)
+        }
+      }
+      // Refresh slot images
+      fetchSlotImages(date, time)
+      setSelectedFiles(null)
+    } catch (e) {
+      alert("Error uploading images.")
+    } finally {
+      setUploadingImages(false)
+    }
+  }
+
+  // Fetch images for a slot from Supabase (by date and slot time)
+  const fetchSlotImages = async (date: string, time: string) => {
+    if (!isSupabaseConfigured) return
+    try {
+      const { supabase } = await import("@/lib/supabase")
+      const { data, error } = await supabase
+        .from("activity_photos")
+        .select("url")
+        .eq("date", date)
+        .eq("slot_time", time)
+      if (!error && data) {
+        setSlotImages((prev) => ({ ...prev, [time]: data.map((d: any) => d.url) }))
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   const handleSlotClick = (time: string) => {
     const slot = timeSlots.find((s) => s.time === time)
     if (slot) {
       setSelectedSlot(time)
+      // Preserve activity and description if already set for this slot
       setFormData({
-        activity: "", // Always start empty
+        activity: slot.activity || "",
         status: slot.status === "available" ? "free" : "busy",
-        description: slot.description,
+        description: slot.description || "",
       })
+      fetchSlotImages(selectedDate, time)
     }
   }
 
@@ -411,7 +484,7 @@ export default function AdminPage() {
                           <Button
                             variant="outline"
                             onClick={() => handleSlotClick(slot.time)}
-                            className={`h-16 flex flex-col items-center justify-center text-sm ${
+                            className={`h-16 flex flex-col items-center justify-center text-sm relative ${
                               slot.status === "available"
                                 ? "bg-green-700/30 border-green-600 text-green-100 hover:bg-green-700/50"
                                 : "bg-red-700/30 border-red-600 text-red-100 hover:bg-red-700/50"
@@ -421,6 +494,12 @@ export default function AdminPage() {
                             <span className="text-xs truncate w-full text-center">
                               {slot.activity || (slot.status === "available" ? "Available" : "Unavailable")}
                             </span>
+                            {/* Show image count badge if images exist for this slot */}
+                            {slotImages[slot.time] && slotImages[slot.time].length > 0 && (
+                              <span className="absolute top-1 right-1 bg-purple-600 text-white text-xs rounded-full px-2 py-0.5">
+                                {slotImages[slot.time].length} 📷
+                              </span>
+                            )}
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="bg-gray-800 border-gray-700">
@@ -475,6 +554,35 @@ export default function AdminPage() {
                                 className="bg-gray-700 text-white border-gray-600"
                                 rows={3}
                               />
+                            </div>
+                            {/* Image Upload UI */}
+                            <div>
+                              <Label htmlFor="slot-images" className="text-white">Activity Images</Label>
+                              <input
+                                id="slot-images"
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                className="block mt-2 text-white"
+                                disabled={uploadingImages}
+                                onChange={async (e) => {
+                                  setSelectedFiles(e.target.files)
+                                  await handleImageUpload(e.target.files, selectedDate, slot.time)
+                                }}
+                              />
+                              {/* Thumbnails of already uploaded images */}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {(slotImages[selectedSlot ?? ""] || []).map((url, idx) => (
+                                  <Image
+                                    key={url + idx}
+                                    src={url}
+                                    alt={`Slot image ${idx + 1}`}
+                                    width={64}
+                                    height={64}
+                                    className="rounded border border-gray-600 object-cover"
+                                  />
+                                ))}
+                              </div>
                             </div>
                             <Button onClick={handleSaveSlot} className="w-full bg-purple-600 hover:bg-purple-700">
                               <Save className="w-4 h-4 mr-2" />
