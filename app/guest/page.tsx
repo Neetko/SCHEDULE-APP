@@ -11,6 +11,7 @@ import Link from "next/link"
 import { ScheduleService } from "@/lib/schedule-service"
 import { TodosService } from "@/lib/todos-service"
 import { isSupabaseConfigured } from "@/lib/supabase"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 export default function GuestPage() {
   // Language state: 'hr' or 'en'
@@ -64,6 +65,13 @@ export default function GuestPage() {
   const [activityStats, setActivityStats] = useState<[string, number][]>([])
   const [todos, setTodos] = useState<Array<{ id: string; text: string; completed: boolean }>>([])
   const [loading, setLoading] = useState(true)
+
+  // Add state for activity photos
+  const [activityPhotos, setActivityPhotos] = useState<Record<string, { url: string; title?: string; description?: string; date: string }>>({})
+
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalImage, setModalImage] = useState<{ url: string; title?: string; description?: string; slots: string[] } | null>(null)
 
   useEffect(() => {
     const updateTime = () => {
@@ -139,6 +147,35 @@ export default function GuestPage() {
       }
     }
     fetchTodos()
+  }, [])
+
+  // Fetch activity photos for today's date
+  useEffect(() => {
+    const fetchActivityPhotos = async () => {
+      if (!isSupabaseConfigured) return
+      try {
+        const { supabase } = await import("@/lib/supabase")
+        const todayDate = new Date().toISOString().split("T")[0] // Get today's date in YYYY-MM-DD format
+        const { data, error } = await supabase
+          .from("activity_photos")
+          .select("slot_time, url, title, description, date")
+          .eq("date", todayDate) // Filter by today's date
+
+        if (error) {
+          console.error("Error fetching activity photos:", error)
+          return
+        }
+
+        const photos: Record<string, { url: string; title?: string; description?: string; date: string }> = {}
+        data?.forEach((row) => {
+          photos[row.slot_time] = { url: row.url, title: row.title, description: row.description, date: row.date }
+        })
+        setActivityPhotos(photos)
+      } catch (e) {
+        console.error("Error fetching activity photos:", e)
+      }
+    }
+    fetchActivityPhotos()
   }, [])
 
   const loadInitialData = async () => {
@@ -238,6 +275,18 @@ export default function GuestPage() {
     if (showHistorical) {
       loadHistoricalSchedule()
     }
+  }
+
+  // Function to open modal
+  const openImageModal = (image: { url: string; title?: string; description?: string; slots: string[] }) => {
+    setModalImage(image)
+    setModalOpen(true)
+  }
+
+  // Function to close modal
+  const closeImageModal = () => {
+    setModalImage(null)
+    setModalOpen(false)
   }
 
   if (loading) {
@@ -365,6 +414,7 @@ export default function GuestPage() {
                   const isCurrentHour = time === getCurrentHour()
                   // Format time to remove seconds for cleaner display
                   const displayTime = time.substring(0, 5) // Convert HH:MM:SS to HH:MM
+                  const photo = activityPhotos[time] // Check if there is an attached image for today's date
 
                   // Determine border color for current slot
                   const borderColor = data.status === "free"
@@ -374,20 +424,41 @@ export default function GuestPage() {
                     ? "0 0 0 6px rgba(34,197,94,0.15)" // green-500 with 15% opacity
                     : "0 0 0 6px rgba(239,68,68,0.15)" // red-500 with 15% opacity
 
+                  // Update the activity indicator circle and cursor style for time slots with images
+                  const activityIndicatorClass = photo
+                    ? "w-3 h-3 rounded-full flex-shrink-0 bg-purple-500"
+                    : `w-3 h-3 rounded-full flex-shrink-0 ${getStatusColor(data.status)}`;
+
+                  // Update the cursor style for time slots with images
+                  const cursorStyle = photo ? "cursor-pointer" : "cursor-default";
+
+                  // Remove the purple background for time slots with images
+                  const slotBackgroundClass = isCurrentHour
+                    ? "bg-white/20 border-2 border-gray-500"
+                    : "bg-white/5 hover:bg-white/10 border border-transparent";
+
                   return (
                     <div
                       key={time}
                       ref={isCurrentHour ? currentSlotRef : undefined}
                       className={`flex items-center justify-between p-3 rounded-lg transition-all ${
-                        isCurrentHour
-                          ? `bg-white/20 border-2 ${borderColor}`
+                        photo
+                          ? "border-purple-500 hover:bg-purple-800/40"
+                          : isCurrentHour
+                          ? "bg-white/20 border-2 border-gray-500"
                           : "bg-white/5 hover:bg-white/10 border border-transparent"
                       }`}
                       style={isCurrentHour ? { boxShadow } : undefined}
+                      onClick={() => photo && openImageModal({
+                        url: photo.url,
+                        title: photo.title,
+                        description: photo.description,
+                        slots: Object.keys(todaySchedule).filter(slot => activityPhotos[slot]?.url === photo.url)
+                      })}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <span className="font-mono text-lg font-bold w-16 flex-shrink-0 text-white drop-shadow-sm">{displayTime}</span>
-                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${getStatusColor(data.status)}`} />
+                        <div className={activityIndicatorClass} />
                         {/* Show activity text if present, regardless of status; otherwise show empty space */}
                         {(data.activity && data.activity.trim() !== "" && data.activity.trim().toLowerCase() !== "available") ? (
                           <span className={`truncate flex-1 ${isCurrentHour ? "font-semibold" : ""}`}>{data.activity}</span>
@@ -491,6 +562,42 @@ export default function GuestPage() {
           </Link>
         </div>
       </div>
+
+      {/* Modal for displaying image */}
+      <Dialog open={modalOpen} onOpenChange={closeImageModal}>
+        <DialogContent className="max-w-2xl bg-black text-white border-white/10">
+          {modalImage && (
+            <div className="flex flex-col items-center">
+              <div className="relative w-full h-96 mb-4">
+                <Image
+                  src={modalImage.url}
+                  alt={modalImage.title || "Activity Photo"}
+                  fill
+                  className="object-contain rounded-lg"
+                  sizes="100vw"
+                  priority
+                />
+              </div>
+              <div className="w-full text-center space-y-2">
+                {modalImage.title && (
+                  <div className="text-xl font-bold">{modalImage.title}</div>
+                )}
+                {modalImage.description && (
+                  <div className="text-base mt-2">{modalImage.description}</div>
+                )}
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold">Povezani termini:</h3>
+                  <ul className="text-sm text-gray-300">
+                    {modalImage.slots.map((slot, idx) => (
+                      <li key={idx}>{slot}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {

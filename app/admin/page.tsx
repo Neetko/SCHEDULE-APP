@@ -415,6 +415,60 @@ export default function AdminPage() {
     }
   }
 
+  // Add state to manage gallery images
+  const [galleryImages, setGalleryImages] = useState<Array<{ id: string; url: string }>>([])
+
+  // Fetch all gallery images
+  useEffect(() => {
+    const fetchGalleryImages = async () => {
+      if (!isSupabaseConfigured) return
+      try {
+        const { supabase } = await import("@/lib/supabase")
+        const { data, error } = await supabase.from("activity_photos").select("id, url")
+        if (error) {
+          console.error("Error fetching gallery images:", error)
+          return
+        }
+        setGalleryImages(data || [])
+      } catch (e) {
+        console.error("Error fetching gallery images:", e)
+      }
+    }
+    fetchGalleryImages()
+  }, [])
+
+  // Handle image deletion
+  const handleDeleteImage = async (id: string, url: string) => {
+    if (!isSupabaseConfigured) return
+    try {
+      const { supabase } = await import("@/lib/supabase")
+
+      // Delete from storage bucket
+      const fileName = url.split("/").pop() // Extract file name from URL
+      if (fileName) {
+        const { error: storageError } = await supabase.storage.from("activity-photos").remove([fileName])
+        if (storageError) {
+          alert(`Failed to delete image from storage: ${storageError.message}`)
+          return
+        }
+      }
+
+      // Delete from database
+      const { error: dbError } = await supabase.from("activity_photos").delete().eq("id", id)
+      if (dbError) {
+        alert(`Failed to delete image record: ${dbError.message}`)
+        return
+      }
+
+      // Update local state
+      setGalleryImages((prev) => prev.filter((image) => image.id !== id))
+      alert("Image deleted successfully!")
+    } catch (e) {
+      console.error("Error deleting image:", e)
+      alert("Error deleting image. Please try again.")
+    }
+  }
+
   // Show loading state while checking authentication
   if (status === "loading") {
     return (
@@ -810,6 +864,30 @@ export default function AdminPage() {
               </ul>
             </CardContent>
           </Card>
+
+          {/* Gallery Section */}
+          <div className="relative z-10 container mx-auto px-4 py-8">
+            <div className="max-w-6xl mx-auto">
+              <h2 className="text-2xl font-bold text-white mb-4">Gallery</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {galleryImages.map((image) => (
+                  <div key={image.id} className="relative group">
+                    <img
+                      src={image.url}
+                      alt="Gallery Image"
+                      className="w-full h-32 object-cover rounded-md"
+                    />
+                    <button
+                      onClick={() => handleDeleteImage(image.id, image.url)}
+                      className="absolute top-2 right-2 bg-red-600 text-white text-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {/* Footer */}
           <div className="text-center">

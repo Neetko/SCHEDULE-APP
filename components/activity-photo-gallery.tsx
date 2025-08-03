@@ -15,62 +15,39 @@ export default function GalleryFromSupabase() {
     title?: string
     date?: string
     description?: string
+    slots: string[]
   }>>([])
   const [current, setCurrent] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Modify fetchImages to group by unique images and fetch associated time slots
   useEffect(() => {
     const fetchImages = async () => {
       setLoading(true)
       setError(null)
       try {
-        // List only files from the root of the bucket
-        const { data, error } = await supabase.storage.from("activity-photos").list("", { limit: 100, offset: 0 })
+        const { data, error } = await supabase
+          .from("activity_photos")
+          .select("url, title, date, description, slot_time")
+
         if (error) {
           setError("Greška pri dohvaćanju slika iz galerije.")
           return
         }
-        const imageFiles = (data || []).filter((file: any) => file.name && /\.(jpg|jpeg|png|webp)$/i.test(file.name))
-        // Fetch metadata for all images in one query
-        let metaRows: Array<any> = []
-        if (imageFiles.length > 0) {
-          const { data: metaData } = await supabase
-            .from("activity_photos")
-            .select("url,title,date,description")
-            .in(
-              "url",
-              imageFiles.map((file: any) => {
-                const { data } = supabase.storage.from("activity-photos").getPublicUrl(file.name)
-                return data.publicUrl
-              })
-            )
-          metaRows = metaData || []
-        }
-        const imagesWithMeta = imageFiles.map((file: any) => {
-          const { data } = supabase.storage.from("activity-photos").getPublicUrl(file.name)
-          const url = data.publicUrl
-          const meta = metaRows.find((row) => row.url === url)
-          return {
-            url,
-            title: meta?.title || '',
-            date: meta?.date || '',
-            description: meta?.description || '',
+
+        // Group by unique image URLs
+        const uniqueImagesMap = new Map()
+        data?.forEach((row) => {
+          if (!uniqueImagesMap.has(row.url)) {
+            uniqueImagesMap.set(row.url, { ...row, slots: [row.slot_time] })
+          } else {
+            uniqueImagesMap.get(row.url).slots.push(row.slot_time)
           }
         })
-        // Remove duplicates by file name
-        const getFileName = (url: string) => {
-          try {
-            return decodeURIComponent(url.split("/").pop() || "")
-          } catch {
-            return url
-          }
-        }
-        const uniqueImages = imagesWithMeta.filter((img, idx, arr) =>
-          arr.findIndex((i) => getFileName(i.url) === getFileName(img.url)) === idx
-        )
-        setImages(uniqueImages)
-      } catch (e: any) {
+
+        setImages(Array.from(uniqueImagesMap.values()))
+      } catch (e) {
         setError("Greška pri dohvaćanju slika iz galerije.")
         console.error(e)
       } finally {
@@ -182,6 +159,15 @@ export default function GalleryFromSupabase() {
                 {images[modalIdx]?.description && (
                   <div className="text-base mt-2">{images[modalIdx]?.description}</div>
                 )}
+                {/* List associated time slots and activities */}
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold">Povezani termini:</h3>
+                  <ul className="text-sm text-gray-300">
+                    {images[modalIdx]?.slots.map((slot, idx) => (
+                      <li key={idx}>{slot}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
           ) : null}
